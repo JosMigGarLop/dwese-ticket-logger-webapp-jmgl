@@ -1,38 +1,38 @@
 package org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.config;
 
-import io.github.cdimascio.dotenv.Dotenv;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.context.annotation.Configuration;
+import io.github.cdimascio.dotenv.Dotenv; // Importa la librería Dotenv para manejar variables de entorno
+import org.slf4j.Logger; // Importa el logger de SLF4J
+import org.slf4j.LoggerFactory; // Importa la fábrica de loggers de SLF4J
+import org.springframework.context.annotation.Configuration; // Importa la anotación de configuración de Spring
 
-@Configuration
+@Configuration // Marca esta clase como configuración de Spring
 public class DotenvConfig {
 
-    // Se crea un logger para la clase utilizando SLF4J para registrar eventos importantes y posibles errores
+    // Se crea un logger para la clase utilizando SLF4J
     private static final Logger logger = LoggerFactory.getLogger(DotenvConfig.class);
 
     // Bloque estático para inicializar y cargar las variables de entorno del archivo .env
     static {
         try {
-            // Registrar en el log un mensaje informativo indicando que el proceso de carga del archivo .env ha comenzado
+            // Mensaje informativo al iniciar la carga del archivo .env
             logger.info("Loading environment variables from .env file...");
 
-            // Configuración y carga del archivo .env usando la librería Dotenv
+            // Carga el archivo .env
             Dotenv dotenv = Dotenv.configure().load();
 
-            // Iterar sobre todas las entradas (clave-valor) del archivo .env y establecerlas como propiedades del sistema
+            // Itera sobre las entradas del archivo .env
             dotenv.entries().forEach(entry -> {
-                // Establecer cada variable de entorno como una propiedad del sistema
+                // Establece cada variable como propiedad del sistema
                 System.setProperty(entry.getKey(), entry.getValue());
 
-                // Registrar en el log el valor de cada variable cargada para fines de depuración (nivel DEBUG)
+                // Registra el valor de cada variable cargada (nivel DEBUG)
                 logger.debug("Set system property: {} = {}", entry.getKey(), entry.getValue());
             });
 
-            // Registrar en el log un mensaje informativo indicando que el archivo .env se cargó correctamente
+            // Mensaje informativo al finalizar la carga del archivo .env
             logger.info(".env file loaded successfully.");
         } catch (Exception e) {
-            // Si ocurre alguna excepción durante el proceso de carga del archivo .env, se captura y se registra un mensaje de error
+            // Registra un error si ocurre una excepción durante la carga
             logger.error("Failed to load .env file", e);
         }
     }

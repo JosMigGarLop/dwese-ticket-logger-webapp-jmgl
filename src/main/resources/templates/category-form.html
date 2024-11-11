@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- José Miguel García López -->
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments/head :: head('Ticket Logger - Insertar/Actualizar Categoría')"></head>
+<body>
+
+<!-- Incluir el fragmento del header -->
+<header th:replace="fragments/header :: header"></header>
+
+<main class="container mt-5">
+    <h1 th:text="${category.id == null} ? #{msg.category-form.add} : #{msg.category-form.edit}"></h1>
+
+    <!-- Mostrar un mensaje de error si existe -->
+    <div th:if="${errorMessage}" class="alert alert-danger" th:text="${errorMessage}"></div>
+
+    <!-- Formulario de Inserción/Actualización -->
+    <form th:action="${category.id == null} ? @{/categories/insert} : @{/categories/update}"
+          th:object="${category}" method="post" enctype="multipart/form-data" class="mt-4">
+
+        <!-- ID (oculto) -->
+        <input type="hidden" th:field="*{id}" />
+
+        <!-- Nombre de la categoría -->
+        <div class="mb-3">
+            <label for="name" class="form-label" th:text="#{msg.category-form.name}">Nombre</label>
+            <input type="text" th:field="*{name}" id="name" class="form-control" required />
+            <div th:if="${#fields.hasErrors('name')}" class="text-danger" th:errors="*{name}"></div>
+        </div>
+
+        <!-- Imagen de la categoría (opcional) -->
+        <div class="mb-3">
+            <label for="imageFile" class="form-label" th:text="#{msg.category-form.image}">Imagen</label>
+            <input type="file" name="imageFile" id="imageFile" class="form-control" accept="image/*" />
+        </div>
+
+        <!-- Categoría Padre (si aplica) -->
+        <div class="mb-3">
+            <label for="parentCategory" class="form-label" th:text="#{msg.category-form.parentCategory}">Categoría Padre</label>
+            <select th:field="*{parentCategory.id}" id="parentCategory" class="form-control">
+                <option value="" th:text="#{msg.category-form.select-name}"></option>
+                <option th:each="parentCategory2 : ${listCategories}"
+                        th:value="${parentCategory2.id}"
+                        th:text="${parentCategory2.name}"
+                        th:selected="${category.parentCategory != null and category.parentCategory.id == parentCategory2.id}">
+                </option>
+            </select>
+            <div th:if="${#fields.hasErrors('parentCategory')}" class="text-danger" th:errors="*{parentCategory}"></div>
+        </div>
+
+        <!-- Botón para guardar la categoría -->
+        <button type="submit" class="btn btn-primary"
+                th:text="${category.id == null} ? #{msg.category-form.create} : #{msg.category-form.update}"></button>
+
+    </form>
+
+    <!-- Volver a la lista de categorías -->
+    <a th:href="@{/categories}" class="btn btn-secondary mt-3" th:text="#{msg.category-form.returnback}"></a>
+</main>
+
+<!-- Incluir el fragmento del footer -->
+<footer th:replace="fragments/footer :: footer"></footer>
+
+</body>
+</html>

@@ -1,26 +1,23 @@
 package org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.dao;
 
 import org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.entity.Region;
-import org.springframework.jdbc.core.BeanPropertyRowMapper;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.transaction.Transactional;
 import java.util.List;
 
-@Repository
+@Repository // Indica que esta clase es un componente de acceso a datos
+@Transactional // Asegura que los métodos se ejecutan dentro de una transacción
 public class RegionDAOImpl implements RegionDAO {
 
     // Logger para registrar eventos importantes en el DAO
     private static final Logger logger = LoggerFactory.getLogger(RegionDAOImpl.class);
 
-    private final JdbcTemplate jdbcTemplate;
-
-    // Inyección de JdbcTemplate
-    public RegionDAOImpl(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
+    @PersistenceContext // Inyección del EntityManager para operaciones de JPA
+    private EntityManager entityManager;
 
     /**
      * Lista todas las regiones de la base de datos.
@@ -29,9 +26,9 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public List<Region> listAllRegions() {
         logger.info("Listing all regions from the database.");
-        String sql = "SELECT * FROM regions";
-        List<Region> regions = jdbcTemplate.query(sql, new BeanPropertyRowMapper<>(Region.class));
-        logger.info("Retrieved {} regions from the database.", regions.size());
+        String query = "SELECT r FROM Region r"; // Consulta JPQL para obtener todas las regiones
+        List<Region> regions = entityManager.createQuery(query, Region.class).getResultList();
+        logger.info("Retrieved {} regions from the database.", regions.size()); // Registro del tamaño de la lista
         return regions;
     }
 
@@ -42,9 +39,8 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public void insertRegion(Region region) {
         logger.info("Inserting region with code: {} and name: {}", region.getCode(), region.getName());
-        String sql = "INSERT INTO regions (code, name) VALUES (?, ?)";
-        int rowsAffected = jdbcTemplate.update(sql, region.getCode(), region.getName());
-        logger.info("Inserted region. Rows affected: {}", rowsAffected);
+        entityManager.persist(region); // Persistir la nueva región en la base de datos
+        logger.info("Inserted region with ID: {}", region.getId()); // Registro del ID de la nueva región
     }
 
     /**
@@ -54,9 +50,8 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public void updateRegion(Region region) {
         logger.info("Updating region with id: {}", region.getId());
-        String sql = "UPDATE regions SET code = ?, name = ? WHERE id = ?";
-        int rowsAffected = jdbcTemplate.update(sql, region.getCode(), region.getName(), region.getId());
-        logger.info("Updated region. Rows affected: {}", rowsAffected);
+        entityManager.merge(region); // Actualiza la región existente en la base de datos
+        logger.info("Updated region with id: {}", region.getId()); // Registro de la actualización
     }
 
     /**
@@ -66,9 +61,13 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public void deleteRegion(int id) {
         logger.info("Deleting region with id: {}", id);
-        String sql = "DELETE FROM regions WHERE id = ?";
-        int rowsAffected = jdbcTemplate.update(sql, id);
-        logger.info("Deleted region. Rows affected: {}", rowsAffected);
+        Region region = entityManager.find(Region.class, id); // Busca la región por ID
+        if (region != null) {
+            entityManager.remove(region); // Elimina la región encontrada
+            logger.info("Deleted region with id: {}", id); // Registro de la eliminación
+        } else {
+            logger.warn("Region with id: {} not found.", id); // Advertencia si la región no se encuentra
+        }
     }
 
     /**
@@ -79,15 +78,13 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public Region getRegionById(int id) {
         logger.info("Retrieving region by id: {}", id);
-        String sql = "SELECT * FROM regions WHERE id = ?";
-        try {
-            Region region = jdbcTemplate.queryForObject(sql, new BeanPropertyRowMapper<>(Region.class), id);
-            logger.info("Region retrieved: {} - {}", region.getCode(), region.getName());
-            return region;
-        } catch (Exception e) {
-            logger.warn("No region found with id: {}", id);
-            return null;
+        Region region = entityManager.find(Region.class, id); // Busca la región por ID
+        if (region != null) {
+            logger.info("Region retrieved: {} - {}", region.getCode(), region.getName()); // Registro de la región encontrada
+        } else {
+            logger.warn("No region found with id: {}", id); // Advertencia si no se encuentra la región
         }
+        return region; // Retorna la región o null
     }
 
     /**
@@ -98,11 +95,13 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public boolean existsRegionByCode(String code) {
         logger.info("Checking if region with code: {} exists", code);
-        String sql = "SELECT COUNT(*) FROM regions WHERE UPPER(code) = ?";
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, code.toUpperCase());
-        boolean exists = count != null && count > 0;
-        logger.info("Region with code: {} exists: {}", code, exists);
-        return exists;
+        String query = "SELECT COUNT(r) FROM Region r WHERE UPPER(r.code) = :code"; // Consulta para contar regiones
+        Long count = entityManager.createQuery(query, Long.class)
+                .setParameter("code", code.toUpperCase()) // Usar código en mayúsculas para la comparación
+                .getSingleResult(); // Obtener el resultado
+        boolean exists = count != null && count > 0; // Verificar si existen regiones
+        logger.info("Region with code: {} exists: {}", code, exists); // Registro del resultado
+        return exists; // Retorna true o false
     }
 
     /**
@@ -116,10 +115,13 @@ public class RegionDAOImpl implements RegionDAO {
     @Override
     public boolean existsRegionByCodeAndNotId(String code, int id) {
         logger.info("Checking if region with code: {} exists excluding id: {}", code, id);
-        String sql = "SELECT COUNT(*) FROM regions WHERE UPPER(code) = ? AND id != ?";
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, code.toUpperCase(), id);
-        boolean exists = count != null && count > 0;
-        logger.info("Region with code: {} exists excluding id {}: {}", code, id, exists);
-        return exists;
+        String query = "SELECT COUNT(r) FROM Region r WHERE UPPER(r.code) = :code AND r.id != :id"; // Consulta para contar regiones excluyendo ID
+        Long count = entityManager.createQuery(query, Long.class)
+                .setParameter("code", code.toUpperCase()) // Usar código en mayúsculas
+                .setParameter("id", id) // Excluir el ID proporcionado
+                .getSingleResult(); // Obtener el resultado
+        boolean exists = count != null && count > 0; // Verificar si existen regiones
+        logger.info("Region with code: {} exists excluding id {}: {}", code, id, exists); // Registro del resultado
+        return exists; // Retorna true o false
     }
 }

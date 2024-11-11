@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<!-- José Miguel García López -->
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="fragments/head :: head('Ticket Logger - Listado de Categorías')"></head>
+<body>
+
+<!-- Incluir el fragmento del header -->
+<header th:replace="fragments/header :: header"></header>
+
+<main class="container mt-5">
+    <h1 th:text="#{msg.category.title}">Listado de Categorías</h1>
+
+    <!-- Mensajes de error y éxito -->
+    <div th:if="${errorMessage}" class="alert alert-danger">
+        <p th:text="${errorMessage}"></p>
+    </div>
+    <div th:if="${successMessage}" class="alert alert-success">
+        <p th:text="${successMessage}"></p>
+    </div>
+
+    <!-- Tabla de categorías -->
+    <table class="table table-bordered mt-3">
+        <thead>
+        <tr>
+            <th th:text="#{msg.category.id}">ID</th>
+            <th th:text="#{msg.category.name}">Nombre</th>
+            <th th:text="#{msg.category.image}">Imagen</th>
+            <th th:text="#{msg.category.parentCategory}">Categoría Padre</th>
+            <th th:text="#{msg.category.actions}">Acciones</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="category : ${listCategories}">
+            <td th:text="${category.id}"></td>
+            <td th:text="${category.name}"></td>
+            <td>
+                <img th:if="${category.image != null}" th:src="@{'/uploads/' + ${category.image}}"
+                     alt="Imagen de la categoría" style="width: 100px; height: 100px; object-fit: cover;" />
+                <span th:if="${category.image == null}" th:text="#{msg.category.noImage}"></span>
+            </td>
+            <td th:text="${category.parentCategory != null ? category.parentCategory.name : 'N/A'}"></td>
+            <td>
+                <!-- Botón para editar -->
+                <a th:href="@{/categories/edit/{id}(id=${category.id})}" class="btn btn-primary btn-sm"
+                   th:text="#{msg.category.edit}">Editar</a>
+
+                <!-- Botón para eliminar -->
+                <form th:action="@{/categories/delete/{id}(id=${category.id})}" method="post" class="d-inline">
+                    <input type="hidden" name="id" th:value="${category.id}"/>
+                    <button type="submit" class="btn btn-danger btn-sm"
+                            th:onclick="|return confirm('#{msg.category.confirmDelete}');|"
+                            th:text="#{msg.category.delete}">Eliminar</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <!-- Botón para añadir una nueva categoría -->
+    <a th:href="@{/categories/new}" class="btn btn-success mt-3" th:text="#{msg.category.add}">Añadir Categoría</a>
+
+    <!-- Volver a la página principal -->
+    <a th:href="@{/}" class="btn btn-secondary mt-3" th:text="#{msg.category.returnback}">Volver al Inicio</a>
+</main>

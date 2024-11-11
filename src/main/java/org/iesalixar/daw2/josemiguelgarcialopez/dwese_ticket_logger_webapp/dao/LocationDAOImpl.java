@@ -1,29 +1,24 @@
 package org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.dao;
 
 import org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.entity.Location;
-import org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.entity.Province;
-import org.iesalixar.daw2.josemiguelgarcialopez.dwese_ticket_logger_webapp.entity.Supermarket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Repository;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 
-@Repository
+@Repository // Marca esta clase como un componente de acceso a datos
+@Transactional // Indica que los métodos de esta clase están dentro de una transacción
 public class LocationDAOImpl implements LocationDAO {
 
+    // Logger para registrar eventos importantes en el DAO
     private static final Logger logger = LoggerFactory.getLogger(LocationDAOImpl.class);
 
-    private final JdbcTemplate jdbcTemplate;
-
-    // Inyección de JdbcTemplate
-    public LocationDAOImpl(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
+    @PersistenceContext // Inyección del EntityManager para gestionar la persistencia
+    private EntityManager entityManager;
 
     /**
      * Lista todas las ubicaciones de la base de datos.
@@ -32,12 +27,11 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public List<Location> listAllLocations() {
         logger.info("Listing all locations from the database.");
-        String sql = "SELECT l.id, l.address, l.city, p.id as province_id, p.code as province_code, p.name as province_name, " +
-                "s.id as supermarket_id, s.name as supermarket_name " +
-                "FROM locations l " +
-                "JOIN provinces p ON l.province_id = p.id " +
-                "JOIN supermarkets s ON l.supermarket_id = s.id";
-        return jdbcTemplate.query(sql, new LocationRowMapper());
+        // Consulta para obtener todas las ubicaciones junto con sus provincias y supermercados
+        String query = "SELECT l FROM Location l JOIN FETCH l.province JOIN FETCH l.supermarket";
+        List<Location> locations = entityManager.createQuery(query, Location.class).getResultList(); // Ejecutar consulta
+        logger.info("Retrieved {} locations from the database.", locations.size()); // Registro del tamaño de la lista
+        return locations; // Retornar la lista de ubicaciones
     }
 
     /**
@@ -47,8 +41,8 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public void insertLocation(Location location) {
         logger.info("Inserting location with address: {}", location.getAddress());
-        String sql = "INSERT INTO locations (address, city, province_id, supermarket_id) VALUES (?, ?, ?, ?)";
-        jdbcTemplate.update(sql, location.getAddress(), location.getCity(), location.getProvince().getId(), location.getSupermarket().getId());
+        entityManager.persist(location); // Persistir la nueva ubicación en la base de datos
+        logger.info("Inserted location with ID: {}", location.getId()); // Registro del ID de la nueva ubicación
     }
 
     /**
@@ -58,8 +52,8 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public void updateLocation(Location location) {
         logger.info("Updating location with id: {}", location.getId());
-        String sql = "UPDATE locations SET address = ?, city = ?, province_id = ?, supermarket_id = ? WHERE id = ?";
-        jdbcTemplate.update(sql, location.getAddress(), location.getCity(), location.getProvince().getId(), location.getSupermarket().getId(), location.getId());
+        entityManager.merge(location); // Actualiza la ubicación existente en la base de datos
+        logger.info("Updated location with id: {}", location.getId()); // Registro de la actualización
     }
 
     /**
@@ -69,29 +63,30 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public void deleteLocation(int id) {
         logger.info("Deleting location with id: {}", id);
-        String sql = "DELETE FROM locations WHERE id = ?";
-        jdbcTemplate.update(sql, id);
+        Location location = entityManager.find(Location.class, id); // Busca la ubicación por ID
+        if (location != null) {
+            entityManager.remove(location); // Elimina la ubicación encontrada
+            logger.info("Deleted location with id: {}", id); // Registro de la eliminación
+        } else {
+            logger.warn("Location with id: {} not found.", id); // Advertencia si la ubicación no se encuentra
+        }
     }
 
     /**
      * Recupera una ubicación por su ID.
-     * @param id ID de la ubicación a recuperar
-     * @return Ubicación encontrada o null si no existe
+     * @param id ID de la ubicación
+     * @return Ubicación correspondiente al ID
      */
     @Override
     public Location getLocationById(int id) {
         logger.info("Retrieving location by id: {}", id);
-        String sql = "SELECT l.id, l.address, l.city, p.id as province_id, p.code as province_code, p.name as province_name, " +
-                "s.id as supermarket_id, s.name as supermarket_name " +
-                "FROM locations l " +
-                "JOIN provinces p ON l.province_id = p.id " +
-                "JOIN supermarkets s ON l.supermarket_id = s.id WHERE l.id = ?";
-        try {
-            return jdbcTemplate.queryForObject(sql, new LocationRowMapper(), id);
-        } catch (Exception e) {
-            logger.warn("No location found with id: {}", id);
-            return null;
+        Location location = entityManager.find(Location.class, id); // Busca la ubicación por ID
+        if (location != null) {
+            logger.info("Location retrieved: {}", location.getAddress()); // Registro de la ubicación encontrada
+        } else {
+            logger.warn("No location found with id: {}", id); // Advertencia si no se encuentra la ubicación
         }
+        return location; // Retorna la ubicación o null
     }
 
     /**
@@ -102,9 +97,11 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public boolean existsLocationByAddress(String address) {
         logger.info("Checking if location with address: {} exists", address);
-        String sql = "SELECT COUNT(*) FROM locations WHERE UPPER(address) = ?";
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, address.toUpperCase());
-        return count != null && count > 0;
+        // Consulta para contar ubicaciones con la dirección dada (en mayúsculas)
+        Long count = entityManager.createQuery("SELECT COUNT(l) FROM Location l WHERE UPPER(l.address) = :address", Long.class)
+                .setParameter("address", address.toUpperCase()) // Usar dirección en mayúsculas para la comparación
+                .getSingleResult(); // Obtener el resultado
+        return count != null && count > 0; // Retorna true si existe al menos una ubicación
     }
 
     /**
@@ -118,36 +115,11 @@ public class LocationDAOImpl implements LocationDAO {
     @Override
     public boolean existsLocationByAddressAndNotId(String address, int id) {
         logger.info("Checking if location with address: {} exists excluding id: {}", address, id);
-        String sql = "SELECT COUNT(*) FROM locations WHERE UPPER(address) = ? AND id != ?";
-        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, address.toUpperCase(), id);
-        return count != null && count > 0;
-    }
-
-    /**
-     * Clase interna que implementa RowMapper para mapear los resultados de la consulta SQL a la entidad Location.
-     */
-    private static class LocationRowMapper implements RowMapper<Location> {
-        @Override
-        public Location mapRow(ResultSet rs, int rowNum) throws SQLException {
-            Location location = new Location();
-            location.setId(rs.getInt("id"));
-            location.setAddress(rs.getString("address"));
-            location.setCity(rs.getString("city"));
-
-            // Mapea la provincia asociada
-            Province province = new Province();
-            province.setId(rs.getInt("province_id"));
-            province.setCode(rs.getString("province_code"));
-            province.setName(rs.getString("province_name"));
-            location.setProvince(province);
-
-            // Mapea el supermercado asociado
-            Supermarket supermarket = new Supermarket();
-            supermarket.setId(rs.getInt("supermarket_id"));
-            supermarket.setName(rs.getString("supermarket_name"));
-            location.setSupermarket(supermarket);
-
-            return location;
-        }
+        // Consulta para contar ubicaciones con la dirección dada, excluyendo el ID especificado
+        Long count = entityManager.createQuery("SELECT COUNT(l) FROM Location l WHERE UPPER(l.address) = :address AND l.id != :id", Long.class)
+                .setParameter("address", address.toUpperCase()) // Usar dirección en mayúsculas
+                .setParameter("id", id) // Excluir el ID proporcionado
+                .getSingleResult(); // Obtener el resultado
+        return count != null && count > 0; // Retorna true si existe al menos una ubicación
     }
 }
